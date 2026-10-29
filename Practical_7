@@ -1,0 +1,539 @@
+// ============================================================
+// FEEDBACK MANAGEMENT APP - ASP.NET CORE MVC
+// ============================================================
+
+// FILE: Models/Feedback.cs
+
+using System.ComponentModel.DataAnnotations;
+
+namespace FeedbackManagementApp.Models
+{
+    public class Feedback
+    {
+        public int Id { get; set; }
+
+        [Required(ErrorMessage = "Full Name is required.")]
+        [StringLength(50, ErrorMessage = "Name cannot exceed 50 characters.")]
+        [Display(Name = "Full Name")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email address is required.")]
+        [EmailAddress(ErrorMessage = "Please enter a valid email address.")]
+        [Display(Name = "Email Address")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please select a feedback category.")]
+        [Display(Name = "Feedback Category")]
+        public string Category { get; set; } = string.Empty;
+
+        [Range(1, 5, ErrorMessage = "Rating must be between 1 and 5 stars.")]
+        [Display(Name = "Star Rating")]
+        public int Rating { get; set; }
+
+        [Required(ErrorMessage = "Feedback comments are required.")]
+        [MinLength(10, ErrorMessage = "Comments must be at least 10 characters long.")]
+        [Display(Name = "Your Feedback")]
+        public string Comments { get; set; } = string.Empty;
+    }
+}
+
+
+// ============================================================
+// FILE: Controllers/FeedbackController.cs
+// ============================================================
+
+using Microsoft.AspNetCore.Mvc;
+using FeedbackManagementApp.Models;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace FeedbackManagementApp.Controllers
+{
+    public class FeedbackController : Controller
+    {
+        private static readonly List<Feedback> FeedbackList = new();
+        private static int _nextId = 1;
+
+        public IActionResult Index()
+        {
+            ViewBag.TotalCount = FeedbackList.Count;
+
+            ViewBag.AverageRating = FeedbackList.Count > 0
+                ? FeedbackList.Average(f => f.Rating)
+                : 0.0;
+
+            ViewBag.PositivePercentage = FeedbackList.Count > 0
+                ? FeedbackList.Count(f => f.Rating >= 4) * 100.0
+                    / FeedbackList.Count
+                : 0.0;
+
+            return View(FeedbackList.OrderByDescending(f => f.Id).ToList());
+        }
+
+        [HttpGet]
+        public IActionResult Create()
+        {
+            return View(new Feedback());
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult Create(Feedback feedback)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View(feedback);
+            }
+
+            feedback.Id = _nextId++;
+            FeedbackList.Add(feedback);
+
+            TempData["SuccessMessage"] =
+                "Thank you! Your feedback has been submitted successfully.";
+
+            return RedirectToAction(nameof(Index));
+        }
+    }
+}
+
+
+// ============================================================
+// FILE: Controllers/HomeController.cs
+// ============================================================
+
+using System.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
+using FeedbackManagementApp.Models;
+
+namespace FeedbackManagementApp.Controllers
+{
+    public class HomeController : Controller
+    {
+        private readonly ILogger<HomeController> _logger;
+
+        public HomeController(ILogger<HomeController> logger)
+        {
+            _logger = logger;
+        }
+
+        public IActionResult Index()
+        {
+            return View();
+        }
+
+        public IActionResult Privacy()
+        {
+            return View();
+        }
+
+        [ResponseCache(
+            Duration = 0,
+            Location = ResponseCacheLocation.None,
+            NoStore = true)]
+        public IActionResult Error()
+        {
+            return View(new ErrorViewModel
+            {
+                RequestId = Activity.Current?.Id
+                    ?? HttpContext.TraceIdentifier
+            });
+        }
+    }
+}
+
+
+// ============================================================
+// FILE: Views/Feedback/Create.cshtml
+// ============================================================
+
+@model FeedbackManagementApp.Models.Feedback
+
+@{
+    ViewData["Title"] = "Submit Feedback";
+}
+
+<style>
+    .star-rating {
+        display: flex;
+        flex-direction: row-reverse;
+        justify-content: flex-end;
+        gap: 5px;
+    }
+
+    .star-rating input {
+        display: none;
+    }
+
+    .star-rating label {
+        font-size: 35px;
+        color: #ccc;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+
+    .star-rating input:checked ~ label,
+    .star-rating label:hover,
+    .star-rating label:hover ~ label {
+        color: #ffc107;
+    }
+
+    .feedback-card {
+        border-radius: 16px;
+        overflow: hidden;
+    }
+</style>
+
+<div class="row justify-content-center my-4">
+    <div class="col-lg-7 col-md-9">
+        <div class="card shadow border-0 feedback-card">
+
+            <div class="card-header bg-primary bg-gradient text-white p-4">
+                <h3 class="mb-1 fw-bold">Share Your Experience</h3>
+                <p class="mb-0">
+                    We value your input to continuously improve our platform.
+                </p>
+            </div>
+
+            <div class="card-body p-4">
+                <form asp-controller="Feedback"
+                      asp-action="Create"
+                      method="post">
+
+                    @Html.AntiForgeryToken()
+
+                    <div asp-validation-summary="ModelOnly"
+                         class="text-danger mb-3"></div>
+
+                    <div class="mb-3">
+                        <label asp-for="FullName"
+                               class="form-label fw-semibold"></label>
+                        <input asp-for="FullName"
+                               class="form-control"
+                               placeholder="Enter your full name" />
+                        <span asp-validation-for="FullName"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Email"
+                               class="form-label fw-semibold"></label>
+                        <input asp-for="Email"
+                               class="form-control"
+                               placeholder="Enter your email address" />
+                        <span asp-validation-for="Email"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Category"
+                               class="form-label fw-semibold"></label>
+                        <select asp-for="Category" class="form-select">
+                            <option value="">Select a category</option>
+                            <option value="Website">Website</option>
+                            <option value="Product">Product</option>
+                            <option value="Service">Service</option>
+                            <option value="Support">Customer Support</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <span asp-validation-for="Category"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-3">
+                        <label asp-for="Rating"
+                               class="form-label fw-semibold d-block"></label>
+
+                        <div class="star-rating">
+                            <input type="radio" id="star5"
+                                   asp-for="Rating" value="5" />
+                            <label for="star5" title="5 Stars">★</label>
+
+                            <input type="radio" id="star4"
+                                   asp-for="Rating" value="4" />
+                            <label for="star4" title="4 Stars">★</label>
+
+                            <input type="radio" id="star3"
+                                   asp-for="Rating" value="3" />
+                            <label for="star3" title="3 Stars">★</label>
+
+                            <input type="radio" id="star2"
+                                   asp-for="Rating" value="2" />
+                            <label for="star2" title="2 Stars">★</label>
+
+                            <input type="radio" id="star1"
+                                   asp-for="Rating" value="1" />
+                            <label for="star1" title="1 Star">★</label>
+                        </div>
+
+                        <span asp-validation-for="Rating"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <div class="mb-4">
+                        <label asp-for="Comments"
+                               class="form-label fw-semibold"></label>
+                        <textarea asp-for="Comments"
+                                  class="form-control"
+                                  rows="4"
+                                  placeholder="Tell us what you liked or what we can improve..."></textarea>
+                        <span asp-validation-for="Comments"
+                              class="text-danger small"></span>
+                    </div>
+
+                    <div class="d-flex justify-content-between
+                                align-items-center pt-3 border-top">
+                        <a asp-controller="Feedback"
+                           asp-action="Index"
+                           class="btn btn-outline-secondary">
+                            Cancel
+                        </a>
+
+                        <button type="submit"
+                                class="btn btn-primary px-4">
+                            Submit Feedback
+                        </button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+
+
+// ============================================================
+// FILE: Views/Feedback/Index.cshtml
+// ============================================================
+
+@model IEnumerable<FeedbackManagementApp.Models.Feedback>
+
+@{
+    ViewData["Title"] = "Feedback Dashboard";
+}
+
+<div class="container py-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold">Feedback Dashboard</h2>
+            <p class="text-muted">
+                View and analyze customer feedback.
+            </p>
+        </div>
+
+        <a asp-controller="Feedback"
+           asp-action="Create"
+           class="btn btn-primary">
+            + Add Feedback
+        </a>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show"
+             role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm bg-white p-3
+                        text-center rounded-3 h-100">
+                <span class="text-muted text-uppercase fw-bold small">
+                    Total Responses
+                </span>
+                <h2 class="fw-bold text-primary m-0 mt-2">
+                    @ViewBag.TotalCount
+                </h2>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm bg-white p-3
+                        text-center rounded-3 h-100">
+                <span class="text-muted text-uppercase fw-bold small">
+                    Average Rating
+                </span>
+                <h2 class="fw-bold text-warning m-0 mt-2">
+                    @(((double)ViewBag.AverageRating).ToString("0.0"))
+                    <small class="fs-6 text-muted">/ 5</small>
+                </h2>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm bg-white p-3
+                        text-center rounded-3 h-100">
+                <span class="text-muted text-uppercase fw-bold small">
+                    Positive Sentiment (4★ &amp; 5★)
+                </span>
+                <h2 class="fw-bold text-success m-0 mt-2">
+                    @(((double)ViewBag.PositivePercentage).ToString("0.0"))%
+                </h2>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white py-3">
+            <h5 class="mb-0 fw-bold">Customer Responses</h5>
+        </div>
+
+        <div class="card-body">
+            @if (Model.Any())
+            {
+                foreach (var feedback in Model)
+                {
+                    <partial name="_FeedbackItem" model="feedback" />
+                }
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <h5 class="text-muted">
+                        No feedback available yet.
+                    </h5>
+                    <p>Be the first person to share your experience.</p>
+
+                    <a asp-controller="Feedback"
+                       asp-action="Create"
+                       class="btn btn-primary">
+                        Submit Feedback
+                    </a>
+                </div>
+            }
+        </div>
+    </div>
+
+</div>
+
+
+// ============================================================
+// FILE: Views/Feedback/_FeedbackItem.cshtml
+// ============================================================
+
+@model FeedbackManagementApp.Models.Feedback
+
+<div class="card border rounded-3 mb-3">
+    <div class="card-body">
+
+        <div class="d-flex justify-content-between
+                    align-items-start flex-wrap gap-2">
+
+            <div>
+                <h5 class="fw-bold mb-1">@Model.FullName</h5>
+                <span class="badge bg-primary">@Model.Category</span>
+            </div>
+
+            <div class="text-warning fs-5"
+                 aria-label="@Model.Rating out of 5 stars">
+                @for (int i = 1; i <= 5; i++)
+                {
+                    if (i <= Model.Rating)
+                    {
+                        <span>★</span>
+                    }
+                    else
+                    {
+                        <span class="text-secondary">☆</span>
+                    }
+                }
+            </div>
+        </div>
+
+        <p class="card-text my-3 text-secondary"
+           style="white-space: pre-line;">@Model.Comments</p>
+
+        <div class="d-flex justify-content-between
+                    align-items-center text-muted small pt-2 border-top">
+            <span><strong>Email:</strong> @Model.Email</span>
+            <span>Feedback ID: @Model.Id</span>
+        </div>
+
+    </div>
+</div>
+
+
+// ============================================================
+// FILE: Views/Home/Index.cshtml
+// ============================================================
+
+@{
+    ViewData["Title"] = "Home";
+}
+
+<div class="container py-5 text-center">
+
+    <h1 class="display-4 fw-bold">
+        Welcome to Feedback Management
+    </h1>
+
+    <p class="lead text-muted mt-3">
+        Share your experience and help us improve our services.
+    </p>
+
+    <div class="mt-4">
+        <a asp-controller="Feedback"
+           asp-action="Create"
+           class="btn btn-primary btn-lg me-2">
+            Give Feedback
+        </a>
+
+        <a asp-controller="Feedback"
+           asp-action="Index"
+           class="btn btn-outline-primary btn-lg">
+            View Feedback
+        </a>
+    </div>
+
+</div>
+
+
+// ============================================================
+// FILE: Views/_ViewImports.cshtml
+// ============================================================
+
+@using FeedbackManagementApp
+@using FeedbackManagementApp.Models
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+
+// ============================================================
+// FILE: Program.cs
+// ============================================================
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/Home/Error");
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+
+app.UseRouting();
+
+app.UseAuthorization();
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
